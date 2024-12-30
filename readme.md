@@ -209,9 +209,185 @@ export default function Page() {
 | **ISR Fetching**          | `fetch(url, { next: { revalidate: <seconds> } })`   | Automatically handled in `getStaticProps`     |
 
 
+## How vercel serve a Next.JS request?
+
+<img src="./images/img.png" alt="How vercel serve a request?" />
+
+Image Source: [Thinking in NextJS](https://www.stacklearner.com/my/workshops/thinking-in-nextjs?wid=18dd4467-6515-4d68-a7a1-6a5748c69054)
+
+### Overview
+
+When a page in a Next.js application uses **Server-Side Rendering (SSR)**, the HTML is generated on the server and 
+stored in the CDN (Content Delivery Network). CDNs like Amazon S3, Cloudflare, or others cache the content. Metadata 
+generated at build time helps the edge network/CDN decide whether to serve the request from the CDN cache or to forward
+it to the server for fresh JavaScript generation.
+
+### Request Handling
+
+1. **Initial Request**:
+  - A request is made to the nearest Vercel edge server/CDN server.
+  - The edge network/server determines how to handle the request.
+
+2. **Edge Network/CDN**:
+  - Serves content from the nearest edge server to the client.
+
+---
+
+### Scenarios
+
+#### 1. **Static Request**:
+- If the data is static, the CDN serves the static HTML directly to the client.
+
+#### 2. **Simple Tasks**:
+- For tasks that can be handled by the edge server, the request is served directly from the **Edge Runtime**.
+- The Edge Runtime is less powerful than Node.js runtime but suitable for lightweight operations like:
+  - Sending emails
+  - Making HTTPS requests
+  - Queuing jobs
+
+#### 3. **Complex Tasks / Dynamic HTML**:
+- For complex tasks that cannot be handled by the edge server, the request is forwarded to a **Serverless Function**.
+- The Serverless Function generates the required response.
+
+---
+
+### Serverless Functions
+
+- **Definition**: Lightweight, on-demand functions that run on the server.
+- **Runtime**: Supports Node.js runtime.
+- **Lifecycle**:
+  - Created dynamically upon request.
+  - Destroyed after task completion.
+- **Performance**:
+  - Initialization takes 30ms to 500ms.
+  - Suitable for short-running tasks.
+  - Not recommended for long-running operations, as Vercel imposes restrictions on such use cases.
+- **Use Cases**:
+  - Handling dynamic content.
+  - Performing server-side computations.
 
 
+To make this things happen smoothly and optimize the application for maximum performance, NextJS needs engineering in
+several places. Such as,
 
+* Complex Build System => NextJS manages this
+* Serverless Functions => Vercel manages this
+* Edge Runtime => Vercel manages this
+* Global CDN => Vercel manages this
+* Caching => NextJS + Vercel work together to manage this
+* File System Based Routing => NextJS manages this
+* Application Configurations => We take those decision
+* Boundaries => We take those decision
+
+## The Three-Step Process in Next.js Deployment
+
+### Step 1: Application
+
+- **Design the Application**: Structure and design your application based on requirements.
+- **Write Necessary Code**: Implement the features and functionalities using React and Next.js.
+- **Setup Boundaries**: Define the application's constraints and what it will and won't do.
+- **Add Necessary Configurations**: Configure Next.js settings such as routing, environment variables, and other project
+  settings.
+
+---
+
+### Step 2: Build
+
+- **Resolve Routes**: Next.js resolves and maps routes based on the `pages/` or `app/` directory.
+- **Generate Static Pages**:
+  - For **Static Site Generation (SSG)** and **Incremental Static Regeneration (ISR)**.
+  - Static content is prepared at build time for better performance.
+- **Code Splitting and Bundling**: Automatically splits the code and bundles it to optimize loading performance.
+- **Middleware Compilation**: Middleware logic is compiled to handle specific requests dynamically at runtime.
+- **Generate Metadata**: Generates metadata for efficient caching and routing across the infrastructure.
+
+---
+
+### Step 3: Infrastructure
+
+- **Managed by Infrastructure**:
+  - Most backend tasks like scaling, caching, and routing are handled automatically.
+- **Vercel as Infrastructure Provider**:
+  - Vercel hosts and manages the application with optimized performance.
+- **Custom Infrastructure**:
+  - You can also set up your own infrastructure if Vercel isn't being used.
+
+---
+
+### Additional Notes
+
+- **Vercel's Role**:
+  - Provides seamless integration with Next.js.
+  - Optimized for Static Site Generation (SSG) and Incremental Static Regeneration (ISR).
+  - Leverages CDNs for serving static content and serverless functions for dynamic tasks.
+- **Infrastructure Flexibility**:
+  - While Vercel is a popular choice, Next.js can also be deployed on other platforms like AWS, Google Cloud, or 
+    self-hosted servers.
+
+
+## Decision Making in Next.js Engineering
+
+### Routing Patterns
+1. **Nested Routing**:
+  - Used for components like tabs, accordions, etc., where caching the component is beneficial.
+2. **Parallel Routing**:
+  - Commonly used in dashboards to display multiple independent sections simultaneously.
+3. **Intercepting Routing**:
+  - Useful when building components that are reused across multiple pages.
+
+---
+
+### Layout Design
+Proper layout design is critical for improving page load time and overall user experience.
+- **Efficient Loading**:
+  - Avoid loading all components after fetching all necessary data.
+  - Implement skeleton loading for components while data is being fetched.
+  - Show components immediately as their data is resolved.
+- **API Call Strategies**:
+  - Use `Promise.all` to make parallel API calls for better performance.
+  - Sequential API calls when dependencies exist between requests.
+- **Importance**:
+  - Layout design plays a crucial role in performance and concurrency.
+  - Focus on:
+    - Setting boundaries for components.
+    - Leveraging **Client-Server Composition** for dynamic and static rendering.
+
+---
+
+### Rendering Strategies
+
+1. **Static Content**:
+  - Use **Static Site Generation (SSG)** for content that doesn’t change frequently.
+2. **Dynamic Content**:
+  - **Server-Side Rendering (SSR)**: For fresh data on every request.
+  - **Incremental Static Regeneration (ISR)**: For content updated periodically.
+  - **Partial Pre-Rendering (PPR)**: Combines static and server-side rendering for hybrid content.
+  - **Client-Side Rendering (CSR)**: For client-only rendering.
+---
+
+### Caching Strategies
+
+- **Where to Cache**:
+  1. At the API route level.
+  2. Use **HTTP Cache** for browser-level caching.
+  3. Implement **LRU Cache** at the middleware level for efficient caching of frequently accessed data.
+---
+
+### Runtime Options
+Pages can run on either **Edge** or **Node.js** runtimes. Choose the runtime based on the performance requirements and
+rendering strategy.
+- **Edge Runtime**:
+  - For lightweight and latency-sensitive tasks.
+- **Node.js Runtime**:
+  - For more complex, server-side logic.
+
+---
+
+### Key Considerations
+- Match the routing pattern and layout strategy to the application's requirements.
+- Use appropriate rendering strategies based on the content's nature (static or dynamic).
+- Leverage caching effectively at different levels to optimize performance.
+- Choose the correct runtime (Edge or Node.js) for each page or API route.
 
 
 
