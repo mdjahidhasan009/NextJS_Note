@@ -615,15 +615,6 @@ const posts = await fetch('https://jsonplaceholder.typicode.com/posts', {
 }).then((res) => res.json() as Promise<Post[]>);
 ```
 
-## Dynamic Rendering
-
-### SSR (Server-Side Rendering)
-- HTML is generated on each request.
-
-### PPR (Partial Pre-Rendering)
-- Combines static and dynamic rendering.
-- Example: Enables streaming of partially rendered content for better performance.
-
 ## Search Params/Query Params
 
 - Pages with search or query params will not be cached by the CDN as each request is unique.
@@ -767,6 +758,156 @@ export async function generateStaticParams() {
 ```
 
 **NEXJS prefech all the pages at viewport**
+
+
+
+## Dynamic Rendering
+- While using query or search params it will be dynamic page.
+- If we call `generateMetadata` function in a page then it will be dynamic page.
+
+## SSR (Server-Side Rendering)
+
+### Benefits of Server Rendering
+
+##### Data Fetching
+- **Server Components** allow you to move data fetching to the server, closer to your data source.
+- This can improve performance by reducing the time it takes to fetch data needed for rendering and the number of requests the client needs to make.
+- 
+##### Security
+- **Server Components** help you keep sensitive data and logic on the server, such as tokens and API keys, without the risk of exposing them to the client.
+
+##### Caching
+- By rendering on the server, the result can be cached and reused on subsequent requests and across users.
+- This improves performance and reduces cost by minimizing the amount of rendering and data fetching done on each request.
+
+##### Performance
+- **Server Components** provide additional tools to optimize performance.
+- Moving non-interactive pieces of your UI to **Server Components** reduces the amount of client-side JavaScript needed.
+- Beneficial for users with slower internet or less powerful devices, as the browser has less JavaScript to download, parse, and execute.
+
+##### Initial Page Load and First Contentful Paint (FCP)
+- Server-generated HTML allows users to view the page immediately without waiting for the client to download, parse, and execute JavaScript.
+
+##### Search Engine Optimization and Social Network Shareability
+- Rendered HTML can be used by search engine bots to index your pages.
+- Enables social network bots to generate social card previews for your pages.
+
+##### Streaming
+- **Server Components** allow rendering work to be split into chunks and streamed to the client as they become ready.
+- This enables users to see parts of the page earlier without waiting for the entire page to render on the server.
+
+### PPR (Partial Pre-Rendering)
+- Combines static and dynamic rendering.
+- Example: Enables streaming of partially rendered content for better performance.
+
+
+For this page we will see at response header `Cache-Control: no-store, must-revalidate`. It means the page is not cached
+by the CDN.
+
+#### Using path params, search params, headers, cookies
+```tsx
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchUser = async () => {
+  await sleep(3000);
+  return fetch(`https://jsonplaceholder.typicode.com/users`).then((res) =>
+    res.json() as Promise<User[]>
+  );
+};
+
+export default async function DynamicPostsPage({ searchParams }: Props) {
+  const users = await fetchUser();
+  
+  return (
+    <div>
+      {users.map((user: User) => (
+        <div key={user.id}>
+          <h2>{user.name}</h2>
+          <p>{user.email}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+
+#### SSR + Streaming
+```tsx
+import { Post } from '@/types/post';
+import { User } from '@/types/user';
+import { Suspense, use } from 'react';
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchPosts = async () => {
+  // Simulates a delay for fetching posts
+  await sleep(1000);
+  return fetch('https://jsonplaceholder.typicode.com/posts?limit=10').then(
+          (res) => res.json() as Promise<Post[]>
+  );
+};
+
+const fetchUsers = async () => {
+  // Simulates a delay for fetching users
+  await sleep(5000);
+  return fetch('https://jsonplaceholder.typicode.com/users').then(
+          (res) => res.json() as Promise<User[]>
+  );
+};
+
+export default async function Dashboard() {
+  return (
+          <div>
+            <h1>Dashboard</h1>
+            {/* Streaming: The Posts component will start rendering as soon as its data is ready */}
+            <Suspense fallback={<div>Loading Posts ...</div>}>
+              <Posts fetchPosts={fetchPosts} />
+            </Suspense>
+            {/* Streaming: The Users component will stream its content once its data is ready */}
+            <Suspense fallback={<div>Loading Users...</div>}>
+              <Users fetchUsers={fetchUsers} />
+            </Suspense>
+          </div>
+  );
+}
+
+// Users Component
+type UsersProps = {
+  fetchUsers: () => Promise<User[]>;
+};
+const Users = ({ fetchUsers }: UsersProps) => {
+  // SSR: The `use` hook ensures that the fetchUsers call happens server-side
+  const users = use(fetchUsers());
+  return <div>Users: {users.length}</div>;
+};
+
+// Posts Component
+type PostsProps = {
+  fetchPosts: () => Promise<Post[]>;
+};
+const Posts = ({ fetchPosts }: PostsProps) => {
+  // SSR: The `use` hook ensures that the fetchPosts call happens server-side
+  const posts = use(fetchPosts());
+  return <div>Posts: {posts.length}</div>;
+};
+```
+
+# When to use Server & Client Components?
+
+| **What do you need to do?**                                                   | **Server Component**     | **Client Component**   |
+|-------------------------------------------------------------------------------|--------------------------|------------------------|
+| Fetch data                                                                    | ✅                       | ❌                     |
+| Access backend resources (directly)                                           | ✅                       | ❌                     |
+| Keep sensitive information on the server (access tokens, API keys, etc)       | ✅                       | ❌                     |
+| Keep large dependencies on the server / Reduce client-side JavaScript         | ✅                       | ❌                     |
+| Add interactivity and event listeners (`onClick()`, `onChange()`, etc)        | ❌                       | ✅                     |
+| Use State and Lifecycle Effects (`useState()`, `useReducer()`, `useEffect()`) | ❌                       | ✅                     |
+| Use browser-only APIs                                                         | ❌                       | ✅                     |
+| Use custom hooks that depend on state, effects, or browser-only APIs          | ❌                       | ✅                     |
+| Use React Class components                                                    | ❌                       | ✅                     |
+
+
 
 # References
 * [Thinking in NextJS](https://www.stacklearner.com/my/workshops/thinking-in-nextjs?wid=18dd4467-6515-4d68-a7a1-6a5748c69054)
