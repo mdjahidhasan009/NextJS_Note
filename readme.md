@@ -392,5 +392,182 @@ rendering strategy.
 
 
 
+
+
+# Types of Components in Next.js
+
+## Client Components
+
+- **Hydration** happens on the client side.
+- Can use all React features.
+- Has access to the **browser API**.
+- Can manage **local states** and interactivity.
+- **Loses all server-side features**.
+- Client page **cannot use `async/await`**.
+- Cannot use `metadata` but can add metadata inside JSX directly (React 19).
+
+### Behavior
+
+In client components, Next.js pre-renders some HTML on the server side and sends it to the client. The client then takes over rendering, allowing content to display before JavaScript is fully loaded.
+
+#### Example: Client Component
+
+For the following example, Next.js server sends `Users: 0` in the HTML to the client we can verify this at view page source. But as React starts rendering, you will see `Loading users...` while the API call is in progress.
+
+#### Types
+
+```ts
+type Address = {
+  street: string;
+  suite: string;
+  city: string;
+  zipcode: string;
+  geo: Geo;
+};
+
+type Geo = {
+  lat: string;
+  lng: string;
+};
+
+type Company = {
+  name: string;
+  catchPhrase: string;
+  bs: string;
+};
+
+type User = {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  address: Address;
+  phone: string;
+  website: string;
+  company: Company;
+};
+```
+
+#### Component Example
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export default function Users() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsers = async () => {
+    const controller = new AbortController();
+    setLoading(true);
+    try {
+      const response = await fetch(
+        'https://jsonplaceholder.typicode.com/users',
+        {
+          signal: controller.signal,
+        }
+      );
+      const data = (await response.json()) as User[];
+      setUsers(data);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Fetch aborted');
+      } else {
+        console.error('Error fetching users:', error);
+      }
+    } finally {
+      setLoading(false);
+    }
+
+    return controller;
+  };
+
+  useEffect(() => {
+    const controller = fetchUsers();
+
+    return () => {
+      controller.then((ctrl) => ctrl.abort());
+    };
+  }, []);
+
+  if (loading) {
+    return <div>Loading users...</div>;
+  }
+
+  return <div>Users: {users.length}</div>;
+}
+```
+
+---
+
+### Issue with Default Server Component Behavior
+
+If a component is not explicitly declared as a client component, it defaults to a server component. This means that at build time, Next.js caches the rendered output. For example:
+
+```tsx
+export default function HomePage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">
+        Home Page: {new Date().toLocaleString()}{' '}
+      </h1>
+    </div>
+  );
+}
+```
+
+#### Production Behavior
+
+In production:
+- The page will display the **build-time timestamp** every time it renders.
+- Viewing the **response headers** will show `X-Next-Cache: HIT`, meaning the page is cached and served from the CDN.
+
+#### Fix: Convert to Client Component
+
+To fix this, declare the component as a client component:
+
+```tsx
+'use client';
+
+export default function HomePage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">
+        Home Page: {new Date().toLocaleString()}{' '}
+      </h1>
+    </div>
+  );
+}
+```
+
+---
+
+## Server Components
+
+- Hydration does not occur in server components.
+- If you can view the HTML content of a page in the page source, it is server-rendered.
+- By default, all components in Next.js are **server components**.
+
+---
+
+### Rendering Types in Server Components
+
+#### Static Rendering
+- **Static**: Fully static content with no dynamic data.
+- **SSG (Static Site Generation)**: Pre-rendered at build time.
+- **ISR (Incremental Static Regeneration)**: Periodic updates to static pages.
+
+#### Dynamic Rendering
+- **SSR (Server-Side Rendering)**: HTML generated on each request.
+- **PPR (Partial Pre-Rendering)**: Combines static and dynamic rendering.
+
+#### Streaming
+- **PPR**: Enables streaming of partially rendered content for improved performance.
+
+
+
+
 # References
 * [Thinking in NextJS](https://www.stacklearner.com/my/workshops/thinking-in-nextjs?wid=18dd4467-6515-4d68-a7a1-6a5748c69054)
