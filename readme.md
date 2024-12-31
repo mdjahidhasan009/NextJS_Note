@@ -396,7 +396,7 @@ rendering strategy.
 
 # Types of Components in Next.js
 
-## Client Components
+# Client Components
 
 - **Hydration** happens on the client side.
 - Can use all React features.
@@ -406,11 +406,11 @@ rendering strategy.
 - Client page **cannot use `async/await`**.
 - Cannot use `metadata` but can add metadata inside JSX directly (React 19).
 
-### Behavior
+## Behavior
 
 In client components, Next.js pre-renders some HTML on the server side and sends it to the client. The client then takes over rendering, allowing content to display before JavaScript is fully loaded.
 
-#### Example: Client Component
+### Example: Client Component
 
 For the following example, Next.js server sends `Users: 0` in the HTML to the client we can verify this at view page source. But as React starts rendering, you will see `Loading users...` while the API call is in progress.
 
@@ -518,7 +518,7 @@ export default function HomePage() {
 }
 ```
 
-#### Production Behavior
+### Production Behavior
 
 In production:
 - The page will display the **build-time timestamp** every time it renders.
@@ -544,7 +544,7 @@ export default function HomePage() {
 
 ---
 
-## Server Components
+# Server Components
 
 - Hydration does not occur in server components.
 - If you can view the HTML content of a page in the page source, it is server-rendered.
@@ -552,22 +552,221 @@ export default function HomePage() {
 
 ---
 
-### Rendering Types in Server Components
+## Rendering Types in Server Components
 
-#### Static Rendering
-- **Static**: Fully static content with no dynamic data.
-- **SSG (Static Site Generation)**: Pre-rendered at build time.
-- **ISR (Incremental Static Regeneration)**: Periodic updates to static pages.
+## Static Rendering
 
-#### Dynamic Rendering
-- **SSR (Server-Side Rendering)**: HTML generated on each request.
-- **PPR (Partial Pre-Rendering)**: Combines static and dynamic rendering.
+### Static
+- Fully static content with no dynamic data.
 
-#### Streaming
-- **PPR**: Enables streaming of partially rendered content for improved performance.
+### SSG (Static Site Generation)
+- Pre-rendered at build time.
+- In development mode, the `X-Next-Cache` header will not be shown.
+- In production mode, the `X-Next-Cache: HIT` header will be visible, indicating the page is cached in the CDN.
+- The cached content is served unless revalidated.
 
+### ISR (Incremental Static Regeneration)
+- Periodic updates to static pages after a specified revalidation interval.
+- Example: Adding `revalidate` to a page component makes it ISR.
 
+```tsx
+import Link from 'next/link';
+import type { Post } from '@/types/post';
 
+export const revalidate = 60;
+
+export default async function PostsPage() {
+  const posts = await fetch('https://jsonplaceholder.typicode.com/posts').then(
+    (res) => res.json() as Promise<Post[]>
+  );
+
+  return (
+    <div>
+      <h1 className='text-2xl font-bold'>Posts</h1>
+      <p>Time: {new Date().toLocaleTimeString()}</p>
+      <ul className='list-disc mt-6'>
+        {posts.map((post: Post) => (
+          <li key={post.id}>
+            <h2>
+              <Link href={`/posts/${post.id}`} prefetch={false}>
+                {post.title}
+              </Link>
+            </h2>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+} 
+```
+
+- Within the revalidation interval, the `X-Next-Cache: HIT` header will be shown.
+- After the interval, `X-Next-Cache: STALE` is shown, followed by `X-Next-Cache: MISS` when the page is revalidated.
+
+#### API Caching Example
+You can cache and revalidate API responses without making the page ISR.
+
+```tsx
+const posts = await fetch('https://jsonplaceholder.typicode.com/posts', {
+    next: {
+        revalidate: 30,
+    },
+    cache: 'force-cache',
+}).then((res) => res.json() as Promise<Post[]>);
+```
+
+## Dynamic Rendering
+
+### SSR (Server-Side Rendering)
+- HTML is generated on each request.
+
+### PPR (Partial Pre-Rendering)
+- Combines static and dynamic rendering.
+- Example: Enables streaming of partially rendered content for better performance.
+
+## Search Params/Query Params
+
+- Pages with search or query params will not be cached by the CDN as each request is unique.
+- Dynamic routes (e.g., `posts/[id]`) are not cached and are typically client-rendered.
+
+### Directory Structure
+
+```
+posts
+- [id]
+    - page.tsx # Shows the details of a post
+- page.tsx # Fetches API and displays the list of posts
+```
+
+### Example: Dynamic Route Rendering
+
+In this case, the `[id]` page will be a client side rendered page dispite of the parent page is ISR. Because it has
+dynamic routing. So it will not be cached by the CDN.
+
+`posts/page.tsx`
+
+```tsx
+import Link from 'next/link';
+import type { Post } from '@/types/post';
+
+export const revalidate = 60;
+
+export default async function PostsPage() {
+  const posts = await fetch('https://jsonplaceholder.typicode.com/posts').then(
+    (res) => res.json() as Promise<Post[]>
+  );
+
+  return (
+    <div>
+      <h1 className='text-2xl font-bold'>Posts</h1>
+      <p>Time: {new Date().toLocaleTimeString()}</p>
+      <ul className='list-disc mt-6'>
+        {posts.map((post: Post) => (
+          <li key={post.id}>
+            <h2>
+              <Link href={`/posts/${post.id}`} prefetch={false}>
+                {post.title}
+              </Link>
+            </h2>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+} 
+```
+
+`posts/[id]/page.tsx`
+
+```tsx
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function PostPage({ params }: Props) {
+  cons { id } = await params;
+  const post = await fetch(`https://jsonplaceholder.typicode.com/posts/${id}`).then(
+      (res) => res.json() as Promise<Post>
+  );
+  
+  return (
+      <div>
+        <h1 className='text-2xl font-bold'>{post.title}</h1>
+        <p>{post.body}</p>
+      </div>
+  );
+}
+```
+
+If we add `export const revalidate = 60;` at the top of the `posts/[id]/page.tsx` will not make it ISR. Because it
+has dynamic routing. So it will be client side rendered page.
+
+But we add this at the end of `posts/[id]/page.tsx` then it will be ISR. It will cached all the posts for our case
+`https://jsonplaceholder.typicode.com/posts` returns 100 posts. So it will cache all the 100 posts and will revalidate
+the page after every 60 seconds. And returned value from `generateStaticParams` should be as same as slug value in our
+case it is `id`. And vercel will cache all the posts and will revalidate the page after every 60 seconds at the CDN.
+
+```tsx
+export async function generateStaticParams() {
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts');
+  const posts = await res.json();
+
+  return posts.map((post: { id: string }) => ({
+    id: post.id.toString(),
+  }));
+}
+```
+
+Full code of `posts/[id]/page.tsx`
+
+```tsx
+export const revalidate = 60;
+
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function PostPage({ params }: Props) {
+  cons { id } = await params;
+  const post = await fetch(`https://jsonplaceholder.typicode.com/posts/${id}`).then(
+      (res) => res.json() as Promise<Post>
+  );
+  
+  return (
+      <div>
+        <h1 className='text-2xl font-bold'>{post.title}</h1>
+        <p>{post.body}</p>
+      </div>
+  );
+}
+
+export async function generateStaticParams() {
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts');
+  const posts = await res.json();
+
+  return posts.map((post: { id: string }) => ({
+    id: post.id.toString(),
+  }));
+}
+```
+
+But for a large number of posts it will not be a good idea to cache all the posts. So we can do ISR for first 10 posts
+as those are the most viewed posts. And for the rest of the posts we can do SSR. But when we visit any page of blog
+then it will be ISR means it will be cached by the CDN and will revalidate after every 60 seconds. And will be added
+beside of the first 10 posts.
+
+```tsx
+export async function generateStaticParams() {
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts');
+  const posts = await res.json();
+
+  return posts.slice(0, 10).map((post: { id: string }) => ({
+    id: post.id.toString(),
+  }));
+}
+```
+
+**NEXJS prefech all the pages at viewport**
 
 # References
 * [Thinking in NextJS](https://www.stacklearner.com/my/workshops/thinking-in-nextjs?wid=18dd4467-6515-4d68-a7a1-6a5748c69054)
