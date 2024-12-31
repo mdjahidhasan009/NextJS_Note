@@ -410,7 +410,7 @@ rendering strategy.
 
 In client components, Next.js pre-renders some HTML on the server side and sends it to the client. The client then takes over rendering, allowing content to display before JavaScript is fully loaded.
 
-### Example: Client Component
+### Example: Using "use-client" Directive
 
 For the following example, Next.js server sends `Users: 0` in the HTML to the client we can verify this at view page source. But as React starts rendering, you will see `Loading users...` while the API call is in progress.
 
@@ -540,6 +540,87 @@ export default function HomePage() {
     </div>
   );
 }
+```
+
+### Example: Default Client-Side Behavior in `pages/`
+In `pages` directory, all components are client components by default. This means that the following code will render
+the current time on each page load:
+
+```tsx
+// pages/homePage.js
+export default function HomePage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">
+        Home Page: {new Date().toLocaleString()}{' '}
+      </h1>
+    </div>
+  );
+}
+```
+
+### Example: Dynamic Rendering with `dynamic()`
+We can use `next/dynamic` function to dynamically import a component and explicitly set it to client-side rendering with
+the `ssr: false` option.
+
+```tsx
+import dynamic from 'next/dynamic';
+
+const ClientOnlyComponent = dynamic(() => import('./ClientComponent'), {
+  ssr: false,
+});
+
+export default function Page() {
+  return (
+    <div>
+      <ClientOnlyComponent />
+    </div>
+  );
+}
+```
+
+### Example: Browser APIs Automatically Trigger Client Rendering
+If a component directly references a browser API (e.g., `window`, `document`), Next.js treats it as a client-rendered
+component since such APIs are not available on the server.
+
+```tsx
+export default function BrowserAPIComponent() {
+  if (typeof window !== 'undefined') {
+    console.log('This code runs on the client side');
+  }
+
+  return <div>Browser API detected</div>;
+}
+```
+
+### Example: Using `useEffect`, `useState`, and `useRef`
+When a component uses `useEffect`, `useState`, or `useRef`, it inherently requires client-side rendering because
+`useEffect` runs after the component mounts on the client, `useState` manages dynamic reactivity, and `useRef` allows
+direct DOM manipulation or storing mutable values tied to the browser environment.
+
+```tsx
+import { useEffect, useState, useRef } from 'react';
+
+export default function ExampleComponent() {
+  const [count, setCount] = useState(0); // State for client-side rendering
+  const ref = useRef(null); // Reference to a DOM element
+
+  useEffect(() => {
+    console.log('This runs only on the client after component mounts');
+    if (ref.current) {
+      ref.current.style.color = 'blue'; // Manipulate DOM element
+    }
+  }, []); // Empty dependency array ensures it runs once after mounting
+
+  return (
+          <div>
+            <h1 ref={ref}>Client-side logic example</h1>
+            <p>Count: {count}</p>
+            <button onClick={() => setCount(count + 1)}>Increment</button>
+          </div>
+  );
+}
+
 ```
 
 ---
