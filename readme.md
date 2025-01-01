@@ -208,6 +208,12 @@ export default function Page() {
 | **Fallback Handling**     | `notFound()` for missing paths                      | `fallback` in `getStaticPaths`                |
 | **ISR Fetching**          | `fetch(url, { next: { revalidate: <seconds> } })`   | Automatically handled in `getStaticProps`     |
 
+### Advantages of PPR
+* Combines the speed of static pre-rendering content with the flexibility of server-side dynamic rendering.
+* Reduces build time since not all content is pre-rendered.
+
+### Disadvantages of PPR
+* Requires careful planning to split static and dynamic content.
 
 ## How vercel serve a Next.JS request?
 
@@ -640,6 +646,8 @@ export default function ExampleComponent() {
 ### Static
 - Fully static content with no dynamic data.
 
+We can not resolve any in static rendering if we do it will be a dynamic server component.
+
 ### SSG (Static Site Generation)
 - Pre-rendered at build time.
 - In development mode, the `X-Next-Cache` header will not be shown.
@@ -756,7 +764,7 @@ type Props = {
 };
 
 export default async function PostPage({ params }: Props) {
-  cons { id } = await params;
+  const { id } = await params;
   const post = await fetch(`https://jsonplaceholder.typicode.com/posts/${id}`).then(
       (res) => res.json() as Promise<Post>
   );
@@ -799,7 +807,7 @@ type Props = {
 };
 
 export default async function PostPage({ params }: Props) {
-  cons { id } = await params;
+  const { id } = await params;
   const post = await fetch(`https://jsonplaceholder.typicode.com/posts/${id}`).then(
       (res) => res.json() as Promise<Post>
   );
